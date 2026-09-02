@@ -36,19 +36,20 @@ Windows 노트북에서는 물리 버튼 없이 슬롯 2로 돌아올 수 없습
 
 ## 빠른 설치 (Ubuntu/Debian)
 
+GitHub 릴리스 wheel을 별도 가상환경에 설치합니다.
+
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install .
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.0/host_slot_switch-0.1.0-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
 
-소스 저장소를 내려받은 뒤 저장소 루트에서 위 명령을 실행합니다. `sudo`는
-위의 첫 번째 `apt` 명령에만 사용합니다. 그 뒤의 `pip`, `host-slot-switch`,
-Solaar 명령은 모두 로그인한 데스크톱 사용자로 실행하세요. hidraw 장치를
-`MODE=0666`으로 여는 규칙을 추가하지 말고 배포판의 Solaar udev 규칙을
-사용합니다.
+`sudo`는 위의 첫 번째 `apt` 명령에만 사용합니다. 그 뒤의 `pip`,
+`host-slot-switch`, Solaar 명령은 모두 로그인한 데스크톱 사용자로 실행하세요.
+hidraw 장치를 `MODE=0666`으로 여는 규칙을 추가하지 말고 배포판의 Solaar
+udev 규칙을 사용합니다.
 
 `doctor`의 `offline`은 원인이 하나로 확정됐다는 뜻이 아닙니다. 마우스가
 절전 중이거나 꺼져 있거나, 통신 범위를 벗어났거나, 다른 호스트에 연결된
