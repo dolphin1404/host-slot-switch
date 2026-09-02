@@ -39,14 +39,14 @@ GitHub 릴리스 wheel을 별도 가상환경에 설치합니다.
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.0/host_slot_switch-0.2.0-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.1/host_slot_switch-0.2.1-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
 
 ## 빠른 설치 (Windows 10/11)
 
-Python 3.10 이상을 설치한 뒤 v0.2.0 릴리스의 `install-windows.ps1`을
+Python 3.10 이상을 설치한 뒤 v0.2.1 릴리스의 `install-windows.ps1`을
 다운로드합니다. 마우스가 Windows에 연결된 상태에서 PowerShell로 실행하세요.
 
 ```powershell
@@ -55,6 +55,10 @@ powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 
 사용자 폴더에 설치되며 관리자 권한은 필요 없습니다. 검사 과정에서 HID 장치를
 열지 못하면 Logi Options+를 잠시 종료하고 다시 실행하세요.
+
+v0.2.1부터 직접 Bluetooth 연결에서는 Windows의 응답 확인형 HID 제어 출력
+경로를 사용합니다. 일반 HIDAPI 쓰기가 성공으로 표시되고도 BLE 장치에 전달되지
+않는 Windows 동작을 피하기 위한 처리입니다.
 
 `sudo`는 위의 첫 번째 `apt` 명령에만 사용합니다. 그 뒤의 `pip`,
 `host-slot-switch`, Solaar 명령은 모두 로그인한 데스크톱 사용자로 실행하세요.

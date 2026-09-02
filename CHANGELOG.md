@@ -6,6 +6,16 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-02
+
+### Fixed
+
+- Send HID++ output reports over the acknowledged Windows control path for
+  Bluetooth devices, avoiding silently dropped `WriteFile` reports.
+- Identify numeric HIDAPI bus type `2` as Bluetooth in diagnostics.
+- Report an actionable error when a Bluetooth HID++ collection is visible but
+  does not answer the Change Host probe.
+
 ## [0.2.0] - 2026-09-02
 
 ### Added

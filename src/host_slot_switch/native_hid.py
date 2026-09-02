@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import os
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,7 @@ HIDPP_USAGES = {0x0001, 0x0002, 0x0202}
 @dataclass(frozen=True)
 class NativeDevice(SolaarDevice):
     path: bytes | str = b""
+    control_output: bool = False
 
 
 class _ProtocolError(Exception):
@@ -40,10 +42,12 @@ class NativeHidBackend:
         path: str | None = None,
         *,
         hid_module: Any | None = None,
+        control_writer: Callable[[bytes | str, bytes], None] | None = None,
         timeout: float = 0.7,
     ) -> None:
         self.path = path
         self._hid_module = hid_module
+        self._control_writer = control_writer
         self.timeout = timeout
 
     def _hid(self) -> Any:
@@ -77,28 +81,39 @@ class NativeHidBackend:
 
         devices: list[NativeDevice] = []
         failures: list[str] = []
+        protocol_failures = 0
+        bluetooth_candidate = False
         for record in records:
             if not self._candidate_record(record):
                 continue
             path = record.get("path")
             if not path:
                 continue
+            control_output = self._is_bluetooth(record)
+            bluetooth_candidate = bluetooth_candidate or control_output
+            control_path = path if control_output else None
             handle = hid.device()
             try:
                 handle.open_path(path)
                 for device_index in self._candidate_indexes(record):
                     try:
                         feature_index = self._feature_index(
-                            handle, device_index, CHANGE_HOST
+                            handle, device_index, CHANGE_HOST, control_path=control_path
                         )
                         if not feature_index:
                             continue
                         host_info = self._request(
-                            handle, device_index, feature_index, 0x00
+                            handle,
+                            device_index,
+                            feature_index,
+                            0x00,
+                            control_path=control_path,
                         )
                         if not host_info or host_info[0] not in range(1, 4):
                             continue
-                        name = self._device_name(handle, device_index)
+                        name = self._device_name(
+                            handle, device_index, control_path=control_path
+                        )
                         if not name:
                             name = str(
                                 record.get("product_string") or "Logitech HID++ device"
@@ -114,9 +129,11 @@ class NativeHidBackend:
                                 transport,
                                 True,
                                 path,
+                                control_output,
                             )
                         )
                     except (_ProtocolError, OSError, ValueError):
+                        protocol_failures += 1
                         continue
             except (OSError, RuntimeError) as exc:
                 failures.append(str(exc))
@@ -136,6 +153,12 @@ class NativeHidBackend:
             raise DeviceUnavailableError(
                 "Windows could not open a Logitech HID++ collection. Close Logi "
                 f"Options+ temporarily and retry. Details: {detail}"
+            )
+        if not unique and bluetooth_candidate and protocol_failures:
+            raise DeviceUnavailableError(
+                "Found a Logitech Bluetooth HID++ collection, but the device did "
+                "not answer the Change Host probe. Wake the mouse, close Logi "
+                "Options+ temporarily, and retry."
             )
         return list(unique.values())
 
@@ -163,7 +186,13 @@ class NativeHidBackend:
         handle = hid.device()
         try:
             handle.open_path(selected.path)
-            feature_index = self._feature_index(handle, selected.number, CHANGE_HOST)
+            control_path = selected.path if selected.control_output else None
+            feature_index = self._feature_index(
+                handle,
+                selected.number,
+                CHANGE_HOST,
+                control_path=control_path,
+            )
             if not feature_index:
                 raise DeviceUnavailableError(
                     f"{selected.name!r} does not expose HID++ Change Host (0x1814)."
@@ -174,6 +203,7 @@ class NativeHidBackend:
                 feature_index,
                 0x10,
                 bytes([slot - 1]),
+                control_path=control_path,
             )
         except DeviceUnavailableError:
             raise
@@ -229,10 +259,25 @@ class NativeHidBackend:
 
     @staticmethod
     def _transport(record: Mapping[str, Any], device_index: int) -> str:
-        bus = str(record.get("bus_type") or "").replace("BUS_", "").lower()
+        bus_value = record.get("bus_type")
+        bus = (
+            "bluetooth"
+            if NativeHidBackend._is_bluetooth(record)
+            else str(bus_value or "").replace("BUS_", "").lower()
+        )
         if device_index != 0xFF:
             return f"receiver HID++ (device index {device_index})"
         return f"direct {bus} HID++" if bus else "direct HID++"
+
+    @staticmethod
+    def _is_bluetooth(record: Mapping[str, Any]) -> bool:
+        bus = record.get("bus_type")
+        try:
+            if int(bus) == 2:
+                return True
+        except (TypeError, ValueError):
+            pass
+        return "bluetooth" in str(bus or "").casefold()
 
     @staticmethod
     def _display_path(path: Any) -> str:
@@ -240,21 +285,43 @@ class NativeHidBackend:
             return path.decode(errors="replace")
         return str(path or "")
 
-    def _feature_index(self, handle: Any, device_index: int, feature: int) -> int:
+    def _feature_index(
+        self,
+        handle: Any,
+        device_index: int,
+        feature: int,
+        *,
+        control_path: bytes | str | None = None,
+    ) -> int:
         reply = self._request(
             handle,
             device_index,
             0x00,
             0x00,
             bytes([(feature >> 8) & 0xFF, feature & 0xFF]),
+            control_path=control_path,
         )
         return reply[0] if reply else 0
 
-    def _device_name(self, handle: Any, device_index: int) -> str:
-        feature_index = self._feature_index(handle, device_index, DEVICE_NAME)
+    def _device_name(
+        self,
+        handle: Any,
+        device_index: int,
+        *,
+        control_path: bytes | str | None = None,
+    ) -> str:
+        feature_index = self._feature_index(
+            handle, device_index, DEVICE_NAME, control_path=control_path
+        )
         if not feature_index:
             return ""
-        info = self._request(handle, device_index, feature_index, 0x00)
+        info = self._request(
+            handle,
+            device_index,
+            feature_index,
+            0x00,
+            control_path=control_path,
+        )
         if not info:
             return ""
         length = min(info[0], 128)
@@ -266,6 +333,7 @@ class NativeHidBackend:
                 feature_index,
                 0x10,
                 bytes([len(name)]),
+                control_path=control_path,
             )
             if not fragment:
                 break
@@ -279,10 +347,12 @@ class NativeHidBackend:
         feature_index: int,
         function: int,
         params: bytes = b"",
+        *,
+        control_path: bytes | str | None = None,
     ) -> bytes:
         self._drain(handle)
         request = self._packet(device_index, feature_index, function, params)
-        self._write_packet(handle, request)
+        self._write_packet(handle, request, control_path=control_path)
         deadline = time.monotonic() + self.timeout
         while True:
             remaining = deadline - time.monotonic()
@@ -311,10 +381,14 @@ class NativeHidBackend:
         feature_index: int,
         function: int,
         params: bytes,
+        *,
+        control_path: bytes | str | None = None,
     ) -> None:
         self._drain(handle)
         self._write_packet(
-            handle, self._packet(device_index, feature_index, function, params)
+            handle,
+            self._packet(device_index, feature_index, function, params),
+            control_path=control_path,
         )
 
     @staticmethod
@@ -332,8 +406,17 @@ class NativeHidBackend:
             ]
         ) + params.ljust(16, b"\0")
 
-    @staticmethod
-    def _write_packet(handle: Any, packet: bytes) -> None:
+    def _write_packet(
+        self,
+        handle: Any,
+        packet: bytes,
+        *,
+        control_path: bytes | str | None = None,
+    ) -> None:
+        if control_path is not None:
+            writer = self._control_writer or _windows_set_output_report
+            writer(control_path, packet)
+            return
         written = handle.write(packet)
         if written is not None and written <= 0:
             raise _ProtocolError("hidapi reported a failed HID++ write")
@@ -343,3 +426,61 @@ class NativeHidBackend:
         for _ in range(32):
             if not handle.read(32, 0):
                 return
+
+
+def _windows_set_output_report(path: bytes | str, packet: bytes) -> None:
+    """Send a BLE HID output report with the acknowledged Windows control path."""
+    if os.name != "nt":
+        raise OSError("Windows HID control output is unavailable on this platform")
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    hid = ctypes.WinDLL("hid", use_last_error=True)
+
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    hid.HidD_SetOutputReport.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.ULONG,
+    ]
+    hid.HidD_SetOutputReport.restype = wintypes.BOOLEAN
+
+    device_path = path.decode("utf-8") if isinstance(path, bytes) else path
+    generic_read_write = 0x80000000 | 0x40000000
+    share_read_write = 0x00000001 | 0x00000002
+    open_existing = 3
+    file_flag_overlapped = 0x40000000
+    native_handle = kernel32.CreateFileW(
+        device_path,
+        generic_read_write,
+        share_read_write,
+        None,
+        open_existing,
+        file_flag_overlapped,
+        None,
+    )
+    invalid_handle = ctypes.c_void_p(-1).value
+    if native_handle == invalid_handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        report = (ctypes.c_ubyte * len(packet)).from_buffer_copy(packet)
+        if not hid.HidD_SetOutputReport(native_handle, report, len(packet)):
+            error = ctypes.get_last_error()
+            if error:
+                raise ctypes.WinError(error)
+            raise OSError("HidD_SetOutputReport rejected the HID++ output report")
+    finally:
+        kernel32.CloseHandle(native_handle)

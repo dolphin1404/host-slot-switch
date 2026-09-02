@@ -15,12 +15,16 @@ class FakeHandle:
         pass
 
     def write(self, packet):
+        self.state["writes"].append(bytes(packet))
+        self.respond(packet)
+        return len(packet)
+
+    def respond(self, packet):
         packet = bytes(packet)
-        self.state["writes"].append(packet)
         _, device, feature, function = packet[:4]
         params = packet[4:]
         if feature == 0 and params[:2] == b"\x18\x14":
-            index = 0x0C if device == 1 else 0
+            index = 0x0C if device == self.state.get("device_index", 1) else 0
             self.replies.append(bytes([0x11, device, feature, function, index, 0, 0]))
         elif (feature == 0 and params[:2] == b"\x00\x05") or (
             feature == 0x0C and function & 0xF0 == 0
@@ -32,7 +36,6 @@ class FakeHandle:
             self.replies.append(
                 bytes([0x11, device, feature, function]) + b"MX Vertical"
             )
-        return len(packet)
 
     def read(self, length, timeout):
         return list(self.replies.pop(0)) if self.replies else []
@@ -59,7 +62,34 @@ class FakeHid:
         ]
 
     def device(self):
-        return FakeHandle(self.state)
+        self.current_handle = FakeHandle(self.state)
+        return self.current_handle
+
+
+class BluetoothFakeHid(FakeHid):
+    def __init__(self):
+        super().__init__()
+        self.state["device_index"] = 0xFF
+        self.state["control_writes"] = []
+
+    @staticmethod
+    def enumerate(vendor, product):
+        return [
+            {
+                "path": b"mx-vertical-bluetooth-hidpp",
+                "vendor_id": vendor,
+                "product_id": 0xB020,
+                "product_string": "MX_Vertical",
+                "usage_page": 0xFF43,
+                "usage": 0x0202,
+                "interface_number": -1,
+                "bus_type": 2,
+            }
+        ]
+
+    def write_control(self, path, packet):
+        self.state["control_writes"].append((path, bytes(packet)))
+        self.current_handle.respond(packet)
 
 
 class NativeHidTests(unittest.TestCase):
@@ -90,6 +120,29 @@ class NativeHidTests(unittest.TestCase):
                 for packet in hid.state["writes"]
             )
         )
+
+    def test_bluetooth_uses_windows_control_output_reports(self):
+        hid = BluetoothFakeHid()
+        backend = NativeHidBackend(
+            hid_module=hid,
+            control_writer=hid.write_control,
+            timeout=0.001,
+        )
+
+        devices = backend.list_devices()
+        self.assertEqual(["MX Vertical"], [device.name for device in devices])
+        self.assertEqual(0xFF, devices[0].number)
+        self.assertEqual("direct bluetooth HID++", devices[0].transport)
+        self.assertTrue(devices[0].control_output)
+
+        backend.switch("MX Vertical", 1)
+        self.assertEqual([], hid.state["writes"])
+        change_host = [
+            packet
+            for _, packet in hid.state["control_writes"]
+            if packet[2] == 0x0C and packet[3] & 0xF0 == 0x10
+        ][-1]
+        self.assertEqual(0, change_host[4])
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ Linux (mouse is on slot 2)  -- Ctrl+Shift+1 -->  laptop (slot 1)
 laptop (mouse is on slot 1) -- Ctrl+Shift+2 -->  Linux (slot 2)
 ```
 
-Platform support in `0.2.0`:
+Platform support in `0.2.1`:
 
 | Host | Switching CLI | Global-shortcut installer | Status |
 | --- | --- | --- | --- |
@@ -60,14 +60,14 @@ virtual environment:
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.0/host_slot_switch-0.2.0-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.1/host_slot_switch-0.2.1-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
 
 ### Windows 10/11
 
-Install Python 3.10 or newer, download `install-windows.ps1` from the v0.2.0
+Install Python 3.10 or newer, download `install-windows.ps1` from the v0.2.1
 release, and run this in PowerShell while the mouse is connected to Windows:
 
 ```powershell
@@ -78,6 +78,10 @@ The installer creates `%LOCALAPPDATA%\HostSlotSwitch`, installs the wheel and
 HIDAPI without elevation, validates the connected mouse, registers all three
 hotkeys, and starts the per-user listener. Logi Options+ may need to be closed
 temporarily if it has exclusive access to the HID++ collection.
+
+Version 0.2.1 uses Windows' acknowledged HID control-output path for direct
+Bluetooth connections. This avoids a Windows BLE behavior where an ordinary
+HIDAPI write can report success even though the device never receives it.
 
 Only the first `apt` command shown above uses `sudo`. Run every subsequent
 `host-slot-switch`, `pip`, and Solaar command as the logged-in desktop user. Never
