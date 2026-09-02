@@ -12,11 +12,12 @@ The default mapping matches this project's original setup:
 | --- | --- | ---: |
 | `Ctrl+Shift+1` | laptop | 1 |
 | `Ctrl+Shift+2` | Linux desktop | 2 |
+| `Ctrl+Shift+3` | third host | 3 |
 
-Host Slot Switch is a small, dependency-free Python CLI. On Linux it delegates
-device discovery and HID++ transport to [Solaar](https://pwr-solaar.github.io/Solaar/),
-then uses GNOME's own global-shortcut settings. It does not need a network,
-run as root, or keep a background daemon alive.
+On Linux, Host Slot Switch delegates HID++ transport to
+[Solaar](https://pwr-solaar.github.io/Solaar/) and uses GNOME global shortcuts.
+On Windows, it uses HIDAPI and the documented HID++ feature table, plus a small
+per-user `RegisterHotKey` listener. It does not require administrator access.
 
 ## Important physical constraint
 
@@ -28,23 +29,22 @@ Linux (mouse is on slot 2)  -- Ctrl+Shift+1 -->  laptop (slot 1)
 laptop (mouse is on slot 1) -- Ctrl+Shift+2 -->  Linux (slot 2)
 ```
 
-Platform support in `0.1.1` is deliberately narrow:
+Platform support in `0.2.0`:
 
 | Host | Switching CLI | Global-shortcut installer | Status |
 | --- | --- | --- | --- |
 | Linux + Solaar | Yes | GNOME X11/Wayland | Tested |
 | macOS + Solaar | Experimental | No | Solaar itself has limited macOS support |
-| Windows | No | No | Native HID++ backend is on the roadmap |
+| Windows 10/11 + HIDAPI | Yes | Yes | Experimental; receiver and Bluetooth paths vary by firmware |
 
-If the laptop runs Windows, this version cannot perform the return trip from
-slot 1 to Linux without the physical button. Do not use hard-coded raw HID
-frames as a workaround: both the receiver device index and feature index are
-discovered at runtime.
+The Windows backend does not hard-code a receiver device index or feature
+index. It probes Logitech vendor HID collections, resolves Change Host
+`0x1814` through IRoot, and sends only the documented SetCurrentHost call.
 
 ## Requirements
 
 - Python 3.10 or newer
-- Solaar
+- Solaar on Linux; the `hidapi` Python package is installed automatically on Windows
 - A compatible device exposing HID++ `CHANGE_HOST` (`0x1814`)
 - The mouse already paired to the desired Easy-Switch slots
 
@@ -60,10 +60,24 @@ virtual environment:
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.1/host_slot_switch-0.1.1-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.0/host_slot_switch-0.2.0-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
+
+### Windows 10/11
+
+Install Python 3.10 or newer, download `install-windows.ps1` from the v0.2.0
+release, and run this in PowerShell while the mouse is connected to Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
+```
+
+The installer creates `%LOCALAPPDATA%\HostSlotSwitch`, installs the wheel and
+HIDAPI without elevation, validates the connected mouse, registers all three
+hotkeys, and starts the per-user listener. Logi Options+ may need to be closed
+temporarily if it has exclusive access to the HID++ collection.
 
 Only the first `apt` command shown above uses `sudo`. Run every subsequent
 `host-slot-switch`, `pip`, and Solaar command as the logged-in desktop user. Never
@@ -146,9 +160,9 @@ $ host-slot-switch doctor
 Available commands:
 
 - `switch <profile|1|2|3>` sends a host-change command.
-- `doctor` checks the platform, Solaar, receiver, and online state.
-- `config init` writes the default profile mapping.
-- `hotkeys install|uninstall` manages GNOME shortcuts without touching others.
+- `doctor` checks the selected backend, transport, and online state.
+- `config init|path|show` creates or inspects the profile mapping.
+- `hotkeys install|uninstall` manages GNOME or Windows shortcuts.
 
 All subprocesses use argument arrays rather than a shell. `switch` reports that
 the command was sent—not that a reply arrived—because a successful host change
@@ -159,15 +173,17 @@ recover with the physical Easy-Switch button.
 
 ## Configuration
 
-The default file is `~/.config/host-slot-switch/config.json`:
+The default file is `~/.config/host-slot-switch/config.json` on Linux and
+`%LOCALAPPDATA%\HostSlotSwitch\config.json` on Windows:
 
 ```json
 {
   "device": "MX Vertical",
-  "backend": "solaar",
+  "backend": "auto",
   "profiles": {
     "laptop": {"slot": 1, "hotkey": "<Control><Shift>1"},
-    "linux": {"slot": 2, "hotkey": "<Control><Shift>2"}
+    "linux": {"slot": 2, "hotkey": "<Control><Shift>2"},
+    "slot3": {"slot": 3, "hotkey": "<Control><Shift>3"}
   }
 }
 ```
@@ -182,11 +198,10 @@ owned, and not group/world writable. Symlinks are intentionally rejected. Files
 created by `config init` use mode `0600` inside a `0700` app directory. If a
 manually created config is rejected, run `chmod 600 CONFIG_PATH`.
 
-GNOME allows one configured shortcut per Easy-Switch slot. The installer
-accepts conservative GDK accelerators such as `<Control><Shift>1`,
-`<Alt>F8`, or `<Super>Home`; run `hotkeys install --dry-run` before changing
-the desktop settings. A malformed accelerator or two semantic spellings of the
-same key are rejected.
+There may be zero or one hotkey per slot. Both `<Control><Shift>1` and
+`Ctrl+Shift+1` syntax are accepted. Change any profile name, slot, or hotkey,
+then rerun `hotkeys install`; remove a profile's `hotkey` to leave it unbound.
+A malformed accelerator or two semantic spellings of the same key are rejected.
 Existing GNOME custom shortcuts are checked for semantic accelerator collisions
 before any desktop setting is changed.
 
@@ -208,8 +223,9 @@ for the hardware behavior and implementation references.
 - [x] Safe Solaar backend
 - [x] Named profiles and slots 1-3
 - [x] GNOME X11/Wayland global shortcuts
+- [x] Experimental native receiver/Bluetooth HID++ backend for Windows
+- [x] Persistent configurable Windows global shortcuts
 - [x] Transport/`0x1814` diagnostics, dry-run, JSON output, unit tests, CI
-- [ ] Native receiver/Bluetooth HID++ backend for Windows
 - [ ] macOS shortcut installer
 - [ ] KDE shortcut installer
 - [ ] `.deb`, Windows portable, and signed release artifacts
@@ -226,7 +242,8 @@ sensitive details and ask the maintainer for a private contact channel.
 
 MIT. This project contains no Logitech software, firmware, logos, or product
 imagery, and does not copy or link Solaar code. Solaar is a separately installed
-GPL-2.0 program invoked through its command-line interface. See
+GPL-2.0 program invoked through its command-line interface. The Windows install
+uses the separately licensed HIDAPI Python package. See
 [NOTICE.md](https://github.com/dolphin1404/host-slot-switch/blob/main/NOTICE.md).
 
 Host Slot Switch is an independent project and is not affiliated with,

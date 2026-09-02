@@ -1,6 +1,6 @@
 {
   "device": "MX Vertical",
-  "backend": "solaar",
+  "backend": "auto",
   "profiles": {
     "laptop": {
       "slot": 1,
@@ -9,6 +9,10 @@
     "linux": {
       "slot": 2,
       "hotkey": "<Control><Shift>2"
+    },
+    "slot3": {
+      "slot": 3,
+      "hotkey": "<Control><Shift>3"
     }
   }
 }

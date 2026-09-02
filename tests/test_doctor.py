@@ -8,6 +8,8 @@ from host_slot_switch.solaar import SolaarDevice
 
 
 class StubBackend:
+    name = "solaar"
+
     def __init__(self, devices):
         self.devices = devices
 

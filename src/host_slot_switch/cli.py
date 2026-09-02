@@ -3,12 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shlex
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
+from .backend import create_backend
 from .config import default_config_path, load_config, write_default_config
 from .doctor import checks_as_dicts, run_checks
 from .errors import MxEasySwitchError
@@ -19,8 +21,13 @@ from .gnome import (
     uninstall_hotkeys,
 )
 from .locking import switch_lock
-from .solaar import SolaarBackend
 from .text import terminal_safe
+from .windows import (
+    install_windows_hotkeys,
+    run_windows_hotkeys,
+    uninstall_windows_hotkeys,
+    windows_startup_command,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,11 +38,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-    parser.add_argument(
-        "--config", type=Path, help="config path (default: XDG config directory)"
-    )
-    parser.add_argument("--device", help="override the Solaar device name/sub-string")
+    parser.add_argument("--config", type=Path, help="override the platform config path")
+    parser.add_argument("--device", help="override the device name/sub-string")
     parser.add_argument("--solaar", help="path to the Solaar executable")
+    parser.add_argument("--hid-path", help="override the Windows HID collection path")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     switch = subparsers.add_parser(
@@ -48,25 +54,28 @@ def build_parser() -> argparse.ArgumentParser:
     switch.add_argument("--json", action="store_true", help="machine-readable output")
 
     doctor = subparsers.add_parser(
-        "doctor", help="check Solaar, receiver and mouse state"
+        "doctor", help="check the backend, transport and mouse state"
     )
     doctor.add_argument("--json", action="store_true", help="machine-readable output")
 
-    config = subparsers.add_parser("config", help="create the default configuration")
+    config = subparsers.add_parser("config", help="inspect or create configuration")
     config_sub = config.add_subparsers(dest="config_command", required=True)
     init = config_sub.add_parser("init", help="write the default slot/profile mapping")
     init.add_argument("--force", action="store_true", help="replace an existing config")
+    config_sub.add_parser("path", help="print the configuration file path")
+    config_sub.add_parser("show", help="print the validated configuration")
 
-    hotkeys = subparsers.add_parser("hotkeys", help="manage GNOME global shortcuts")
+    hotkeys = subparsers.add_parser("hotkeys", help="manage global shortcuts")
     hotkeys_sub = hotkeys.add_subparsers(dest="hotkeys_command", required=True)
     hotkeys_install = hotkeys_sub.add_parser(
-        "install", help="install configured GNOME shortcuts"
+        "install", help="install configured global shortcuts"
     )
     hotkeys_install.add_argument("--dry-run", action="store_true")
     hotkeys_remove = hotkeys_sub.add_parser(
         "uninstall", help="remove only this app's shortcuts"
     )
     hotkeys_remove.add_argument("--dry-run", action="store_true")
+    hotkeys_sub.add_parser("run", help=argparse.SUPPRESS)
 
     return parser
 
@@ -75,24 +84,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "config":
+            if args.config_command == "path":
+                print(terminal_safe(args.config or default_config_path()))
+                return 0
+            if args.config_command == "show":
+                loaded = load_config(args.config)
+                print(
+                    json.dumps(
+                        {
+                            "device": loaded.device,
+                            "backend": loaded.backend,
+                            "profiles": {
+                                name: {
+                                    "slot": profile.slot,
+                                    **(
+                                        {"hotkey": profile.hotkey}
+                                        if profile.hotkey
+                                        else {}
+                                    ),
+                                }
+                                for name, profile in loaded.profiles.items()
+                            },
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
+                return 0
             path = write_default_config(args.config, force=args.force)
             print(f"Wrote {terminal_safe(path)}")
             return 0
 
         if args.command == "hotkeys" and args.hotkeys_command == "uninstall":
-            settings = GSettings()
-            if args.dry_run:
-                paths = uninstall_hotkeys(settings, dry_run=True)
+            if platform.system() == "Windows":
+                paths = uninstall_windows_hotkeys(dry_run=args.dry_run)
             else:
-                with switch_lock("gnome-hotkeys"):
-                    paths = uninstall_hotkeys(settings)
+                settings = GSettings()
+                if args.dry_run:
+                    paths = uninstall_hotkeys(settings, dry_run=True)
+                else:
+                    with switch_lock("gnome-hotkeys"):
+                        paths = uninstall_hotkeys(settings)
             verb = "Would remove" if args.dry_run else "Removed"
             print(f"{verb} {len(paths)} Host Slot Switch shortcut(s).")
             return 0
 
         config = load_config(args.config)
         device = args.device or config.device
-        backend = SolaarBackend(args.solaar)
+        backend = create_backend(config, solaar=args.solaar, hid_path=args.hid_path)
 
         if args.command == "switch":
             slot = config.resolve_target(args.target)
@@ -136,6 +175,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if all(check.ok for check in checks) else 1
 
         if args.command == "hotkeys":
+            if platform.system() == "Windows":
+                if args.hotkeys_command == "run":
+
+                    def switch_slot(slot: int) -> None:
+                        with switch_lock("device-switch"):
+                            backend.switch(device, slot)
+
+                    run_windows_hotkeys(config, switch_slot)
+                    return 0
+                shortcut_config = args.config or default_config_path()
+                if not args.dry_run and not os.path.lexists(shortcut_config):
+                    write_default_config(shortcut_config)
+                command = windows_startup_command(
+                    config_path=shortcut_config,
+                    device=args.device,
+                    hid_path=args.hid_path,
+                )
+                bindings = install_windows_hotkeys(
+                    config,
+                    command=command,
+                    dry_run=args.dry_run,
+                )
+                verb = "Would install" if args.dry_run else "Installed"
+                for binding in bindings:
+                    print(
+                        terminal_safe(
+                            f"{verb} {binding.accelerator} -> "
+                            f"{binding.profile} (slot {binding.slot})"
+                        )
+                    )
+                return 0
+            if args.hotkeys_command == "run":
+                raise MxEasySwitchError(
+                    "The built-in hotkey listener is only used on Windows."
+                )
             settings = GSettings()
             if args.hotkeys_command == "install":
                 shortcut_command = [

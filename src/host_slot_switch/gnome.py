@@ -195,11 +195,10 @@ def build_bindings(
     for profile in config.profiles.values():
         if not profile.hotkey:
             continue
-        canonical_hotkey = canonical_accelerator(profile.hotkey)
+        accelerator = normalize_accelerator(profile.hotkey)
+        canonical_hotkey = canonical_accelerator(accelerator)
         if canonical_hotkey in seen_accelerators:
-            raise DesktopIntegrationError(
-                f"Duplicate hotkey in config: {profile.hotkey}"
-            )
+            raise DesktopIntegrationError(f"Duplicate hotkey in config: {accelerator}")
         seen_accelerators.add(canonical_hotkey)
         path = OWN_PATHS[profile.slot - 1]
         if path in seen_paths:
@@ -212,7 +211,7 @@ def build_bindings(
             HotkeyBinding(
                 profile.name,
                 profile.slot,
-                profile.hotkey,
+                accelerator,
                 path,
                 command,
             )
@@ -322,6 +321,33 @@ def canonical_accelerator(value: str) -> tuple[tuple[str, ...], str]:
     ):
         raise DesktopIntegrationError(f"Invalid or unsafe GNOME hotkey: {value!r}")
     return tuple(sorted(modifiers)), key.casefold()
+
+
+def normalize_accelerator(value: str) -> str:
+    if value.startswith("<") or "+" not in value:
+        return value
+    aliases = {
+        "control": "Control",
+        "ctrl": "Control",
+        "primary": "Control",
+        "shift": "Shift",
+        "alt": "Alt",
+        "super": "Super",
+        "win": "Super",
+        "windows": "Super",
+    }
+    tokens = [token.strip() for token in value.split("+")]
+    if len(tokens) < 2 or any(not token for token in tokens):
+        raise DesktopIntegrationError(f"Invalid GNOME hotkey: {value!r}")
+    modifiers: list[str] = []
+    for token in tokens[:-1]:
+        try:
+            modifiers.append(f"<{aliases[token.casefold()]}>")
+        except KeyError as exc:
+            raise DesktopIntegrationError(
+                f"Unsupported GNOME hotkey modifier: {token!r}"
+            ) from exc
+    return "".join(modifiers) + tokens[-1]
 
 
 def install_hotkeys(

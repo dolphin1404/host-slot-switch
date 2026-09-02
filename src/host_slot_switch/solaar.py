@@ -30,6 +30,8 @@ class SolaarDevice:
 
 
 class SolaarBackend:
+    name = "solaar"
+
     def __init__(
         self,
         executable: str | None = None,

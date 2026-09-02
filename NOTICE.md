@@ -25,3 +25,9 @@ own authors under GPL-2.0. Host Slot Switch does not bundle, copy, import, or
 link Solaar code; it invokes Solaar as a separate process through its public
 command-line interface. Solaar remains subject to its own copyright and
 license terms.
+
+## HIDAPI
+
+The Windows backend installs the separately distributed `hidapi` Python
+package, a Cython interface to HIDAPI. It is not bundled in the Host Slot
+Switch wheel and remains subject to its own selectable HIDAPI license terms.

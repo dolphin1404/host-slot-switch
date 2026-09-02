@@ -12,6 +12,14 @@ from .errors import DeviceUnavailableError
 
 
 def default_lock_directory() -> Path:
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base = (
+            Path(local_app_data)
+            if local_app_data
+            else Path.home() / "AppData" / "Local"
+        )
+        return base / "HostSlotSwitch" / "locks"
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if runtime:
         candidate = Path(runtime)

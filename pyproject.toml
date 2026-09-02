@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "host-slot-switch"
-version = "0.1.1"
+version = "0.2.0"
 description = "Switch multi-host pointing-device slots from a keyboard shortcut"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,13 +18,16 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Utilities",
 ]
-dependencies = []
+dependencies = [
+  "hidapi>=0.15,<1; platform_system == 'Windows'",
+]
 
 [project.urls]
 Homepage = "https://github.com/dolphin1404/host-slot-switch"

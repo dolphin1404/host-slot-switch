@@ -12,10 +12,11 @@ Mouse의 Easy-Switch™ 호스트 슬롯으로 테스트했습니다.
 | --- | --- | ---: |
 | `Ctrl+Shift+1` | 노트북 | 1 |
 | `Ctrl+Shift+2` | Linux 데스크톱 | 2 |
+| `Ctrl+Shift+3` | 세 번째 호스트 | 3 |
 
-현재 Linux 구현은 검증된 Solaar CLI로 HID++ 명령을 보내고, GNOME의
-기본 전역 단축키 기능을 사용합니다. 네트워크, root 실행, 상주 데몬이
-필요하지 않습니다.
+Linux에서는 검증된 Solaar CLI와 GNOME 전역 단축키를 사용합니다. Windows에서는
+HIDAPI로 Logitech 전용 HID 컬렉션에 접근하고 사용자 권한의 작은 전역 단축키
+리스너를 실행합니다. 관리자 권한은 필요하지 않습니다.
 
 ## 꼭 알아둘 점
 
@@ -27,12 +28,9 @@ Linux 슬롯 2  -- Ctrl+Shift+1 -->  노트북 슬롯 1
 노트북 슬롯 1 -- Ctrl+Shift+2 -->  Linux 슬롯 2
 ```
 
-따라서 Linux 쪽만 설치하면 노트북으로 보내는 것은 가능하지만, 물리 버튼
-없이 돌아오려면 노트북 쪽 운영체제에도 실행 가능한 백엔드가 필요합니다.
-Linux 노트북은 동일하게 설치하면 됩니다. macOS의 Solaar 지원은 제한적이고
-단축키 자동 설치는 아직 없습니다. Windows는 현재 전환 백엔드가 없으므로,
-Windows 노트북에서는 물리 버튼 없이 슬롯 2로 돌아올 수 없습니다. Windows
-네이티브 HID++ 백엔드는 다음 버전의 작업 항목입니다.
+왕복하려면 Linux와 Windows 양쪽에 설치합니다. Windows 백엔드는 수신기 장치
+인덱스와 `0x1814` 기능 인덱스를 실행 시점에 조회하며 고정값을 사용하지 않습니다.
+Windows 구현은 실제 장치·펌웨어 조합에 따른 검증이 더 필요한 실험 단계입니다.
 
 ## 빠른 설치 (Ubuntu/Debian)
 
@@ -41,10 +39,22 @@ GitHub 릴리스 wheel을 별도 가상환경에 설치합니다.
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.1/host_slot_switch-0.1.1-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.2.0/host_slot_switch-0.2.0-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
+
+## 빠른 설치 (Windows 10/11)
+
+Python 3.10 이상을 설치한 뒤 v0.2.0 릴리스의 `install-windows.ps1`을
+다운로드합니다. 마우스가 Windows에 연결된 상태에서 PowerShell로 실행하세요.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
+```
+
+사용자 폴더에 설치되며 관리자 권한은 필요 없습니다. 검사 과정에서 HID 장치를
+열지 못하면 Logi Options+를 잠시 종료하고 다시 실행하세요.
 
 `sudo`는 위의 첫 번째 `apt` 명령에만 사용합니다. 그 뒤의 `pip`,
 `host-slot-switch`, Solaar 명령은 모두 로그인한 데스크톱 사용자로 실행하세요.
@@ -112,15 +122,18 @@ GNOME이 아니라면 데스크톱 환경의 단축키 설정에서 아래 명�
 
 ## 설정
 
-`~/.config/host-slot-switch/config.json`에 장치 이름, 슬롯, 단축키를 저장합니다.
+Linux는 `~/.config/host-slot-switch/config.json`, Windows는
+`%LOCALAPPDATA%\HostSlotSwitch\config.json`에 장치 이름, 슬롯, 단축키를
+저장합니다.
 
 ```json
 {
   "device": "MX Vertical",
-  "backend": "solaar",
+  "backend": "auto",
   "profiles": {
     "laptop": {"slot": 1, "hotkey": "<Control><Shift>1"},
-    "linux": {"slot": 2, "hotkey": "<Control><Shift>2"}
+    "linux": {"slot": 2, "hotkey": "<Control><Shift>2"},
+    "slot3": {"slot": 3, "hotkey": "<Control><Shift>3"}
   }
 }
 ```
@@ -134,14 +147,17 @@ group/world 쓰기 권한이 없어야 합니다. 심볼릭 링크는 거부합�
 `config init`이 만든 파일은 `0600`, 앱 디렉터리는 `0700`입니다. JSON 키의
 오타나 중복도 오류로 처리해 잘못된 기본 슬롯으로 조용히 전환하지 않습니다.
 
-GNOME 단축키는 슬롯당 하나만 등록할 수 있습니다. 기본 형식처럼
-`<Control><Shift>1`을 사용하고 설치 전 `--dry-run` 결과를 확인하세요.
+단축키는 슬롯당 최대 하나이며 `<Control><Shift>1`과 `Ctrl+Shift+1` 형식을
+모두 지원합니다. JSON에서 이름·슬롯·단축키를 바꾼 뒤 `hotkeys install`을
+다시 실행하면 반영됩니다. `hotkey`를 지우면 해당 프로필은 등록하지 않습니다.
+설치 전 `--dry-run` 결과를 확인하세요.
 기존 GNOME 사용자 단축키와 의미상 같은 키 조합이 있으면 어떤 설정도
 쓰기 전에 충돌 오류로 중단합니다.
 
 ## 안전성과 동작 방식
 
-- shell을 거치지 않고 인자 배열로 Solaar를 실행합니다.
+- Linux에서는 shell을 거치지 않고 인자 배열로 Solaar를 실행합니다.
+- Windows에서는 공개 HID++ 기능 테이블을 조회하고 `0x1814` 명령만 보냅니다.
 - 설정한 MX 장치에 `change-host` 한 종류의 명령만 보냅니다.
 - 프로그램 자체는 root 권한을 요청하지 않습니다.
 - 성공하면 장치 연결이 즉시 끊기므로 응답이 없는 것이 정상입니다.
@@ -166,7 +182,8 @@ GNOME 단축키는 슬롯당 하나만 등록할 수 있습니다. 기본 형식
 
 MIT 라이선스입니다. Logitech 소프트웨어·펌웨어·로고·제품 이미지를 포함하지
 않으며 Solaar 코드를 복사하거나 링크하지 않습니다. Solaar는 별도로 설치하는
-GPL-2.0 프로그램이며 명령줄 인터페이스로만 호출합니다. 자세한 내용은
+GPL-2.0 프로그램이며 명령줄 인터페이스로만 호출합니다. Windows에서는 별도
+라이선스의 HIDAPI Python 패키지를 설치합니다. 자세한 내용은
 [NOTICE.md](https://github.com/dolphin1404/host-slot-switch/blob/main/NOTICE.md)에 있습니다.
 
 Host Slot Switch는 Logitech과 제휴하거나 Logitech의 후원·보증을 받는 제품이

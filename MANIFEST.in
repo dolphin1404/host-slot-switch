@@ -2,6 +2,8 @@ include CHANGELOG.md
 include CONTRIBUTING.md
 include Makefile
 include NOTICE.md
+include scripts/install-windows.ps1
+include scripts/uninstall-windows.ps1
 include README.ko.md
 include SECURITY.md
 include config.example.json

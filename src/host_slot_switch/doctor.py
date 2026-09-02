@@ -4,10 +4,10 @@ import os
 import platform
 from dataclasses import asdict, dataclass
 
+from .backend import Backend
 from .config import Config
 from .errors import DesktopIntegrationError, MxEasySwitchError
 from .gnome import ensure_gnome_desktop
-from .solaar import SolaarBackend
 
 
 @dataclass(frozen=True)
@@ -18,31 +18,35 @@ class Check:
 
 
 def run_checks(
-    config: Config, backend: SolaarBackend, *, device: str | None = None
+    config: Config, backend: Backend, *, device: str | None = None
 ) -> list[Check]:
     desktop = os.environ.get("XDG_CURRENT_DESKTOP") or os.environ.get(
         "DESKTOP_SESSION", "not reported"
     )
-    try:
-        ensure_gnome_desktop()
-        desktop_check = Check("desktop", True, desktop)
-    except DesktopIntegrationError:
-        desktop_check = Check(
-            "desktop",
-            False,
-            f"{desktop} (GNOME shortcut installer unavailable; bind commands manually)",
-        )
+    system = platform.system()
+    if system == "Windows":
+        desktop_check = Check("desktop", True, "Windows RegisterHotKey")
+    else:
+        try:
+            ensure_gnome_desktop()
+            desktop_check = Check("desktop", True, desktop)
+        except DesktopIntegrationError:
+            desktop_check = Check(
+                "desktop",
+                False,
+                f"{desktop} (GNOME shortcut installer unavailable; bind commands manually)",
+            )
     checks = [
         Check(
-            "platform", platform.system() in {"Linux", "Darwin"}, platform.platform()
+            "platform", system in {"Linux", "Darwin", "Windows"}, platform.platform()
         ),
         desktop_check,
     ]
     try:
         version = backend.version()
-        checks.append(Check("solaar", True, version or "available"))
+        checks.append(Check(backend.name, True, version or "available"))
     except MxEasySwitchError as exc:
-        checks.append(Check("solaar", False, str(exc)))
+        checks.append(Check(backend.name, False, str(exc)))
         return checks
 
     try:

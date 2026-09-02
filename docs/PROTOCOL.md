@@ -32,6 +32,15 @@ solaar config -- "MX Vertical Wireless Mouse" change-host 1
 The device must be online on the host issuing the command. After it moves,
 only the destination host can command it back.
 
+## Windows native backend
+
+The Windows backend uses the separately installed HIDAPI binding to enumerate
+Logitech vendor HID collections. It probes direct-device index `0xff` and
+receiver pairing indexes, resolves `0x1814` with `IRoot.GetFeature`, verifies
+the reported host count, and then sends `setCurrentHost(slot - 1)`. Neither the
+receiver device index nor the feature index is hard-coded. A successful write
+disconnects the mouse and has no normal response.
+
 ## Sources
 
 - [Logitech HID++ 2.0 packet format and feature list](https://github.com/Logitech/cpg-docs/blob/master/hidpp20/README.rst)

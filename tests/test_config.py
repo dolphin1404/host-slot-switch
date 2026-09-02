@@ -26,6 +26,7 @@ class ConfigTests(unittest.TestCase):
         config = parse_config(DEFAULT_CONFIG)
         self.assertEqual(1, config.resolve_target("laptop"))
         self.assertEqual(2, config.resolve_target("LINUX"))
+        self.assertEqual(3, config.resolve_target("slot3"))
         self.assertEqual(3, config.resolve_target("3"))
 
     def test_unknown_profile_has_actionable_error(self):
@@ -44,7 +45,7 @@ class ConfigTests(unittest.TestCase):
             parse_config({"profiles": {"bad": {"slot": True}}})
 
     def test_rejects_unsupported_backend(self):
-        with self.assertRaisesRegex(ConfigurationError, "Only the 'solaar'"):
+        with self.assertRaisesRegex(ConfigurationError, "backend.*auto"):
             parse_config({"backend": "raw-hid", "profiles": {"laptop": {"slot": 1}}})
 
     def test_rejects_numeric_profile_names(self):

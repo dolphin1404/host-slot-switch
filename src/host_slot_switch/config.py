@@ -13,10 +13,11 @@ from .errors import ConfigurationError
 
 DEFAULT_CONFIG = {
     "device": "MX Vertical",
-    "backend": "solaar",
+    "backend": "auto",
     "profiles": {
         "laptop": {"slot": 1, "hotkey": "<Control><Shift>1"},
         "linux": {"slot": 2, "hotkey": "<Control><Shift>2"},
+        "slot3": {"slot": 3, "hotkey": "<Control><Shift>3"},
     },
 }
 MAX_CONFIG_BYTES = 1024 * 1024
@@ -54,6 +55,14 @@ def default_config_path() -> Path:
     explicit = os.environ.get("HOST_SLOT_SWITCH_CONFIG")
     if explicit:
         return Path(explicit).expanduser()
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base = (
+            Path(local_app_data)
+            if local_app_data
+            else Path.home() / "AppData" / "Local"
+        )
+        return base / "HostSlotSwitch" / "config.json"
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
     return base / "host-slot-switch" / "config.json"
@@ -89,10 +98,8 @@ def parse_config(raw: Any) -> Config:
 
     if not isinstance(device, str) or not device.strip():
         raise ConfigurationError("'device' must be a non-empty string.")
-    if backend != "solaar":
-        raise ConfigurationError(
-            "Only the 'solaar' backend is supported in this release."
-        )
+    if backend not in {"auto", "solaar", "native-hid"}:
+        raise ConfigurationError("'backend' must be 'auto', 'solaar', or 'native-hid'.")
     if not isinstance(profiles_raw, dict) or not profiles_raw:
         raise ConfigurationError("'profiles' must be a non-empty object.")
 

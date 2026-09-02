@@ -85,10 +85,17 @@ class GnomeTests(unittest.TestCase):
             parse_config(DEFAULT_CONFIG), cli_command=["/opt/host-slot-switch"]
         )
         self.assertEqual(
-            ["<Control><Shift>1", "<Control><Shift>2"],
+            ["<Control><Shift>1", "<Control><Shift>2", "<Control><Shift>3"],
             [b.accelerator for b in bindings],
         )
         self.assertEqual("/opt/host-slot-switch switch -- 1", bindings[0].command)
+
+    def test_accepts_windows_style_hotkey_syntax(self):
+        config = parse_config(
+            {"profiles": {"laptop": {"slot": 1, "hotkey": "Ctrl+Shift+1"}}}
+        )
+        binding = build_bindings(config, cli_command=["host-slot-switch"])[0]
+        self.assertEqual("<Control><Shift>1", binding.accelerator)
 
     @unittest.skipIf(os.name != "posix", "POSIX permission semantics")
     def test_discover_cli_reports_group_writable_entry_point(self):

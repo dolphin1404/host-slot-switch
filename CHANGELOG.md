@@ -6,6 +6,16 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-02
+
+### Added
+
+- Experimental native HID++ receiver and Bluetooth switching on Windows.
+- Per-user Windows global-hotkey listener with login startup registration.
+- A third default slot and portable angle-bracket or `Ctrl+Shift+1` syntax.
+- `config path` and `config show` commands.
+- PowerShell install and uninstall helpers for Windows.
+
 ## [0.1.1] - 2026-09-02
 
 ### Fixed

@@ -41,6 +41,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_config_show_includes_all_three_slots(self):
+        stdout = io.StringIO()
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "config.json"
+            path.write_text(json.dumps(DEFAULT_CONFIG), encoding="utf-8")
+            with redirect_stdout(stdout):
+                code = main(["--config", str(path), "config", "show"])
+        self.assertEqual(0, code)
+        shown = json.loads(stdout.getvalue())
+        self.assertEqual(
+            [1, 2, 3], [item["slot"] for item in shown["profiles"].values()]
+        )
+
     def test_hotkey_command_keeps_custom_config_path(self):
         class DryRunSettings:
             def get(self, schema, key, path=None):
