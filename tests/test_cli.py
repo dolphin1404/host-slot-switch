@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -41,19 +42,24 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_hotkey_command_keeps_custom_config_path(self):
+        class DryRunSettings:
+            def get(self, schema, key, path=None):
+                return "@as []"
+
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "config.json"
             path.write_text(json.dumps(DEFAULT_CONFIG), encoding="utf-8")
             stdout = io.StringIO()
             with (
                 patch(
-                    "host_slot_switch.gnome.shutil.which",
-                    side_effect=lambda name: f"/usr/bin/{name}",
+                    "host_slot_switch.cli.GSettings",
+                    return_value=DryRunSettings(),
                 ),
                 patch(
                     "host_slot_switch.cli.discover_cli_command",
                     return_value=["/opt/host-slot-switch"],
                 ),
+                patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}, clear=False),
                 redirect_stdout(stdout),
             ):
                 code = main(

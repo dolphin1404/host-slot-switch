@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -55,20 +54,23 @@ class GnomeTests(unittest.TestCase):
         desktop.start()
         self.addCleanup(desktop.stop)
 
-    @unittest.skipUnless(shutil.which("gsettings"), "gsettings is not installed")
     def test_gvariant_string_encoding_handles_spaces_quotes_and_unicode(self):
-        def memory_runner(command, **kwargs):
-            kwargs["env"] = {**os.environ, "GSETTINGS_BACKEND": "memory"}
-            check = kwargs.pop("check", False)
-            return subprocess.run(command, check=check, **kwargs)
+        commands = []
 
-        settings = GSettings(runner=memory_runner)
+        def recording_runner(command, **kwargs):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        settings = GSettings("/usr/bin/gsettings", runner=recording_runner)
         settings.set_string(
             CUSTOM_SCHEMA,
             "command",
             "'/tmp/My fun/python' -m host_slot_switch # 😀",
             OWN_PATHS[0],
         )
+        encoded = commands[0][-1]
+        self.assertIn("😀", encoded)
+        self.assertNotIn("\\ud83d", encoded)
 
     def test_parse_empty_typed_array(self):
         self.assertEqual([], parse_string_array("@as []"))
