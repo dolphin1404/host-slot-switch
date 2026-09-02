@@ -28,7 +28,7 @@ Linux (mouse is on slot 2)  -- Ctrl+Shift+1 -->  laptop (slot 1)
 laptop (mouse is on slot 1) -- Ctrl+Shift+2 -->  Linux (slot 2)
 ```
 
-Platform support in `0.1.0` is deliberately narrow:
+Platform support in `0.1.1` is deliberately narrow:
 
 | Host | Switching CLI | Global-shortcut installer | Status |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ virtual environment:
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.0/host_slot_switch-0.1.0-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.1/host_slot_switch-0.1.1-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
@@ -92,6 +92,15 @@ Preview and install GNOME global shortcuts:
 
 ```bash
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install --dry-run
+~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install
+```
+
+For security, the hotkey installer rejects an entry point that is writable by
+the group or by everyone. If the installer reports this after creating the
+virtual environment, secure that file and retry:
+
+```bash
+chmod go-w ~/.local/share/host-slot-switch/venv/bin/host-slot-switch
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install
 ```
 

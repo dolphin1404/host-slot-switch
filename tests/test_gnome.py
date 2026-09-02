@@ -1,6 +1,10 @@
 import os
+import stat
 import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from host_slot_switch.config import DEFAULT_CONFIG, parse_config
@@ -13,6 +17,7 @@ from host_slot_switch.gnome import (
     OWN_PATHS,
     GSettings,
     build_bindings,
+    discover_cli_command,
     ensure_gnome_desktop,
     install_hotkeys,
     parse_string_array,
@@ -84,6 +89,30 @@ class GnomeTests(unittest.TestCase):
             [b.accelerator for b in bindings],
         )
         self.assertEqual("/opt/host-slot-switch switch -- 1", bindings[0].command)
+
+    @unittest.skipIf(os.name != "posix", "POSIX permission semantics")
+    def test_discover_cli_reports_group_writable_entry_point(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "host-slot-switch"
+            executable.touch(mode=0o775)
+            executable.chmod(
+                stat.S_IRUSR
+                | stat.S_IWUSR
+                | stat.S_IXUSR
+                | stat.S_IRGRP
+                | stat.S_IWGRP
+                | stat.S_IXGRP
+                | stat.S_IROTH
+                | stat.S_IXOTH
+            )
+            with (
+                patch.object(sys, "argv", [str(executable)]),
+                patch.object(sys, "executable", str(Path(directory) / "python")),
+                self.assertRaisesRegex(
+                    DesktopIntegrationError, r"chmod go-w .*host-slot-switch"
+                ),
+            ):
+                discover_cli_command()
 
     def test_install_preserves_unrelated_shortcuts(self):
         existing = "/org/example/unrelated/"

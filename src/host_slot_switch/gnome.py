@@ -230,6 +230,7 @@ def discover_cli_command() -> list[str]:
     candidates.extend(
         [executable_dir / "host-slot-switch", executable_dir / "host-slot-switch.exe"]
     )
+    unsafe_permissions: list[Path] = []
     for candidate in candidates:
         try:
             resolved = candidate.resolve(strict=True)
@@ -240,13 +241,21 @@ def discover_cli_command() -> list[str]:
             continue
         if not stat.S_ISREG(info.st_mode):
             continue
-        if os.name == "posix" and (
-            not os.access(resolved, os.X_OK)
-            or (hasattr(os, "getuid") and info.st_uid not in {0, os.getuid()})
-            or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-        ):
-            continue
+        if os.name == "posix":
+            if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                unsafe_permissions.append(resolved)
+                continue
+            if not os.access(resolved, os.X_OK) or (
+                hasattr(os, "getuid") and info.st_uid not in {0, os.getuid()}
+            ):
+                continue
         return [str(resolved)]
+    if unsafe_permissions:
+        rejected = unsafe_permissions[0]
+        raise DesktopIntegrationError(
+            f"The installed entry point is writable by group or others: {rejected}. "
+            f"Run 'chmod go-w {shlex.quote(str(rejected))}' and retry."
+        )
     raise DesktopIntegrationError(
         "Cannot find the installed host-slot-switch entry point. Install the package "
         "before registering persistent hotkeys."

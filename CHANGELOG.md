@@ -6,6 +6,15 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-02
+
+### Fixed
+
+- Explain how to secure a group- or world-writable console entry point when
+  persistent hotkey registration rejects it.
+- Document the permission repair for virtual environments created with
+  permissive inherited modes.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added

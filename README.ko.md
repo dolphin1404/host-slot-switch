@@ -41,7 +41,7 @@ GitHub 릴리스 wheel을 별도 가상환경에 설치합니다.
 ```bash
 sudo apt install solaar python3-venv
 python3 -m venv ~/.local/share/host-slot-switch/venv
-~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.0/host_slot_switch-0.1.0-py3-none-any.whl
+~/.local/share/host-slot-switch/venv/bin/pip install https://github.com/dolphin1404/host-slot-switch/releases/download/v0.1.1/host_slot_switch-0.1.1-py3-none-any.whl
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch config init
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch doctor
 ```
@@ -74,6 +74,15 @@ GNOME 단축키 변경 내용을 먼저 확인한 후 설치합니다.
 
 ```bash
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install --dry-run
+~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install
+```
+
+보안을 위해 단축키 설치기는 그룹 또는 모든 사용자가 수정할 수 있는 실행
+파일을 거부합니다. 가상환경을 만든 뒤 이 오류가 나오면 실행 파일 권한을
+안전하게 바꾸고 다시 설치하세요.
+
+```bash
+chmod go-w ~/.local/share/host-slot-switch/venv/bin/host-slot-switch
 ~/.local/share/host-slot-switch/venv/bin/host-slot-switch hotkeys install
 ```
 

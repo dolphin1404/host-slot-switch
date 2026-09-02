@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "host-slot-switch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Switch multi-host pointing-device slots from a keyboard shortcut"
 readme = "README.md"
 requires-python = ">=3.10"
