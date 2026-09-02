@@ -1,0 +1,14 @@
+{
+  "device": "MX Vertical",
+  "backend": "solaar",
+  "profiles": {
+    "laptop": {
+      "slot": 1,
+      "hotkey": "<Control><Shift>1"
+    },
+    "linux": {
+      "slot": 2,
+      "hotkey": "<Control><Shift>2"
+    }
+  }
+}

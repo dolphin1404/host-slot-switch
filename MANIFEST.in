@@ -1,0 +1,8 @@
+include CHANGELOG.md
+include CONTRIBUTING.md
+include Makefile
+include NOTICE.md
+include README.ko.md
+include SECURITY.md
+include config.example.json
+recursive-include docs *.md
