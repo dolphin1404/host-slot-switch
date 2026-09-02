@@ -23,10 +23,13 @@ class StubBackend:
 class DoctorTests(unittest.TestCase):
     def test_desktop_check_rejects_non_gnome_false_success(self):
         backend = StubBackend([])
-        with patch.dict(
-            os.environ,
-            {"XDG_CURRENT_DESKTOP": "KDE", "DESKTOP_SESSION": "plasma"},
-            clear=False,
+        with (
+            patch.dict(
+                os.environ,
+                {"XDG_CURRENT_DESKTOP": "KDE", "DESKTOP_SESSION": "plasma"},
+                clear=False,
+            ),
+            patch("host_slot_switch.doctor.platform.system", return_value="Linux"),
         ):
             checks = run_checks(parse_config(DEFAULT_CONFIG), backend)
         desktop = next(check for check in checks if check.name == "desktop")
@@ -35,12 +38,23 @@ class DoctorTests(unittest.TestCase):
 
     def test_desktop_check_accepts_gnome(self):
         backend = StubBackend([])
-        with patch.dict(
-            os.environ, {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}, clear=False
+        with (
+            patch.dict(
+                os.environ, {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}, clear=False
+            ),
+            patch("host_slot_switch.doctor.platform.system", return_value="Linux"),
         ):
             checks = run_checks(parse_config(DEFAULT_CONFIG), backend)
         desktop = next(check for check in checks if check.name == "desktop")
         self.assertTrue(desktop.ok)
+
+    def test_desktop_check_accepts_windows_hotkey_service(self):
+        backend = StubBackend([])
+        with patch("host_slot_switch.doctor.platform.system", return_value="Windows"):
+            checks = run_checks(parse_config(DEFAULT_CONFIG), backend)
+        desktop = next(check for check in checks if check.name == "desktop")
+        self.assertTrue(desktop.ok)
+        self.assertIn("RegisterHotKey", desktop.detail)
 
     def test_reports_transport_and_change_host_capability(self):
         backend = StubBackend(

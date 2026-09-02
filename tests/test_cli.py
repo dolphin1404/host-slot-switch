@@ -28,6 +28,7 @@ class CliTests(unittest.TestCase):
             patch(
                 "host_slot_switch.solaar.shutil.which", return_value="/usr/bin/solaar"
             ),
+            patch("host_slot_switch.backend.platform.system", return_value="Linux"),
             redirect_stdout(stdout),
         ):
             code = main(["switch", "laptop", "--dry-run"])
@@ -72,6 +73,7 @@ class CliTests(unittest.TestCase):
                     "host_slot_switch.cli.discover_cli_command",
                     return_value=["/opt/host-slot-switch"],
                 ),
+                patch("host_slot_switch.cli.platform.system", return_value="Linux"),
                 patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}, clear=False),
                 redirect_stdout(stdout),
             ):
